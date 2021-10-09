@@ -543,7 +543,7 @@ func (b *LinkBuffer) Book(min int, p [][]byte) (vs [][]byte) {
 }
 
 // BookAck will ack the first n malloc bytes and discard the rest.
-func (b *LinkBuffer) BookAck(n int, waitSize int) (length int) {
+func (b *LinkBuffer) BookAck(n int) (length int) {
 	var l int
 	for ack := n; ack > 0; ack = ack - l {
 		l = b.flush.malloc - len(b.flush.buf)
@@ -560,19 +560,21 @@ func (b *LinkBuffer) BookAck(n int, waitSize int) (length int) {
 	for node := b.flush.next; node != nil; node = node.next {
 		node.off, node.malloc, node.refer, node.buf = 0, 0, 1, node.buf[:0]
 	}
+	b.write = b.flush
 
 	// re-cal length
 	length = b.recalLen(n)
-	// FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
-	isEnd := waitSize > 0 && length >= waitSize
-	if isEnd && cap(b.flush.buf) > pagesize {
+	return length
+}
+
+// FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
+func (b *LinkBuffer) nilTail() {
+	if cap(b.flush.buf) > pagesize {
 		if b.flush.next == nil {
 			b.flush.next = newLinkBufferNode(0)
 		}
 		b.flush = b.flush.next
 	}
-	b.write = b.flush
-	return length
 }
 
 // Reset resets the buffer to be empty,

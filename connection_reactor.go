@@ -89,11 +89,13 @@ func (c *connection) inputAck(n int) (err error) {
 		n = 0
 	}
 	waitSize := int(atomic.LoadInt32(&c.waitReadSize))
-	length := c.inputBuffer.BookAck(n, waitSize)
-
+	length := c.inputBuffer.BookAck(n)
 	if waitSize <= 0 {
-		c.onRequest()
-	} else if waitSize <= length {
+		return c.onRequest()
+	}
+
+	if waitSize <= length {
+		c.inputBuffer.nilTail()
 		c.triggerRead()
 	}
 	return nil
