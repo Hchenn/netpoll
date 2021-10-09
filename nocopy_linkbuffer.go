@@ -569,12 +569,14 @@ func (b *LinkBuffer) BookAck(n int) (length int) {
 
 // FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
 func (b *LinkBuffer) nilTail() {
-	if cap(b.flush.buf) > pagesize {
-		if b.flush.next == nil {
-			b.flush.next = newLinkBufferNode(0)
-		}
-		b.flush = b.flush.next
+	if cap(b.flush.buf) <= pagesize {
+		return
 	}
+	if b.flush.next == nil {
+		b.flush.next = newLinkBufferNode(0)
+	}
+	b.flush = b.flush.next
+	b.write = b.flush
 }
 
 // Reset resets the buffer to be empty,
