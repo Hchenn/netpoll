@@ -530,9 +530,7 @@ func (b *LinkBuffer) GetBytes(p [][]byte) (vs [][]byte) {
 // Book will grow and fill the slice p greater than min, only return len(vs) == 1
 func (b *LinkBuffer) Book(min int, p [][]byte) (vs [][]byte) {
 	var length, capacity = min, min
-	if min > 16*pagesize {
-		length = 16 * pagesize
-	} else if min < pagesize {
+	if min < pagesize {
 		capacity = pagesize
 	}
 

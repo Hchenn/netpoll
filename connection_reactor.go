@@ -71,15 +71,16 @@ func (c *connection) closeBuffer() {
 
 // inputs implements FDOperator.
 func (c *connection) inputs(vs [][]byte) (rs [][]byte) {
-	wait := int(atomic.LoadInt32(&c.waitReadSize))
-	if wait > c.maxsize {
-		c.maxsize = wait
-	}
-	n := c.maxsize - c.inputBuffer.Len()
-	if n < 512 {
-		n = 512
-	}
-	return c.inputBuffer.Book(n, vs)
+	// wait := int(atomic.LoadInt32(&c.waitReadSize))
+	// if wait > c.maxsize {
+	// 	c.maxsize = wait
+	// }
+	// n := c.maxsize - c.inputBuffer.Len()
+	// if n < 512 {
+	// 	n = 512
+	// }
+
+	return c.inputBuffer.Book(c.booksize, vs)
 
 	// if n <= pagesize {
 	// 	return c.inputBuffer.Book(pagesize, vs)
@@ -97,16 +98,19 @@ func (c *connection) inputAck(n int) (err error) {
 	if n < 0 {
 		n = 0
 	}
+	// auto size
+	if n == c.booksize && c.booksize <= 8*pagesize {
+		c.booksize = 2 * c.booksize
+	} else if n < c.booksize/2 && c.booksize >= block1k {
+		c.booksize = c.booksize / 2
+	}
+
 	// leftover := atomic.AddInt32(&c.waitReadSize, int32(-n))
 	wait := int(atomic.LoadInt32(&c.waitReadSize))
 	length, _ := c.inputBuffer.BookAck(n, wait)
-	if length > c.maxsize {
-		c.maxsize = length
+	if wait <= 0 || length > wait {
+		c.triggerRead()
 	}
-
-	// if leftover <= 0 {
-	// c.triggerRead()
-	// }
 	c.onRequest()
 	return err
 }
