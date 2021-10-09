@@ -41,6 +41,7 @@ type connection struct {
 	inputBarrier    *barrier
 	outputBarrier   *barrier
 	supportZeroCopy bool
+	maxsize         int
 }
 
 var _ Connection = &connection{}
@@ -327,11 +328,14 @@ func (c *connection) triggerWrite(err error) {
 
 // waitRead will wait full n bytes.
 func (c *connection) waitRead(n int) (err error) {
-	leftover := n - c.inputBuffer.Len()
-	if leftover <= 0 {
+	if n < c.inputBuffer.Len() {
 		return nil
 	}
-	atomic.StoreInt32(&c.waitReadSize, int32(leftover))
+	// leftover := n - c.inputBuffer.Len()
+	// if leftover <= 0 {
+	// 	return nil
+	// }
+	atomic.StoreInt32(&c.waitReadSize, int32(n))
 	defer atomic.StoreInt32(&c.waitReadSize, 0)
 	if c.readTimeout > 0 {
 		return c.waitReadWithTimeout(n)

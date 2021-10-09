@@ -93,10 +93,12 @@ func (c *connection) onPrepare(prepare OnPrepare) (err error) {
 func (c *connection) onRequest() (err error) {
 	var process = c.process.Load()
 	if process == nil {
+		c.triggerRead()
 		return nil
 	}
 	// Buffer has been fully processed, or task already exists
 	if !c.lock(processing) {
+		c.triggerRead()
 		return nil
 	}
 	// add new task

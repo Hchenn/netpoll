@@ -521,29 +521,48 @@ func (b *LinkBuffer) GetBytes(p [][]byte) (vs [][]byte) {
 	return p[:i]
 }
 
-// Book will grow and fill the slice p greater than min.
+// Book will grow and fill the slice p greater than min, only return len(vs) == 1
 func (b *LinkBuffer) Book(min int, p [][]byte) (vs [][]byte) {
-	var i, l int
+	var length, capacity = min, min
+	if min > 16*pagesize {
+		length = 16 * pagesize
+	} else if min < pagesize {
+		capacity = pagesize
+	}
+
 	for {
-		l = cap(b.write.buf) - b.write.malloc
-		if l > 0 {
-			p[i] = b.write.Malloc(l)
-			i++
-			min -= l
-			if min <= 0 || i == len(p) {
-				break
-			}
+		l := cap(b.write.buf) - b.write.malloc
+		if l >= length {
+			p[0] = b.write.Malloc(length)
+			return p[:1]
 		}
 		if b.write.next == nil {
-			b.write.next = newLinkBufferNode(min)
+			b.write.next = newLinkBufferNode(capacity)
 		}
 		b.write = b.write.next
 	}
-	return p[:i]
+
+	// var i, l int
+	// for {
+	// 	l = cap(b.write.buf) - b.write.malloc
+	// 	if l > 0 {
+	// 		p[i] = b.write.Malloc(l)
+	// 		i++
+	// 		min -= l
+	// 		if min <= 0 || i == len(p) {
+	// 			break
+	// 		}
+	// 	}
+	// 	if b.write.next == nil {
+	// 		b.write.next = newLinkBufferNode(min)
+	// 	}
+	// 	b.write = b.write.next
+	// }
+	// return p[:i]
 }
 
 // BookAck will ack the first n malloc bytes and discard the rest.
-func (b *LinkBuffer) BookAck(n int, isEnd bool) (err error) {
+func (b *LinkBuffer) BookAck(n int, waitsize int) (length int, err error) {
 	var l int
 	for ack := n; ack > 0; ack = ack - l {
 		l = b.flush.malloc - len(b.flush.buf)
@@ -561,18 +580,18 @@ func (b *LinkBuffer) BookAck(n int, isEnd bool) (err error) {
 		node.off, node.malloc, node.refer, node.buf = 0, 0, 1, node.buf[:0]
 	}
 
+	// re-cal length
+	length = b.recalLen(n)
+
 	// FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
-	if isEnd && cap(b.flush.buf) > pagesize {
+	if waitsize > 0 && waitsize <= length && cap(b.flush.buf) > pagesize {
 		if b.flush.next == nil {
 			b.flush.next = newLinkBufferNode(0)
 		}
 		b.flush = b.flush.next
 	}
 	b.write = b.flush
-
-	// re-cal length
-	b.recalLen(n)
-	return nil
+	return length, nil
 }
 
 // Reset resets the buffer to be empty,
@@ -587,9 +606,8 @@ func (b *LinkBuffer) BookAck(n int, isEnd bool) (err error) {
 // }
 
 // recalLen re-calculate the length
-func (b *LinkBuffer) recalLen(delta int) (err error) {
-	atomic.AddInt32(&b.length, int32(delta))
-	return nil
+func (b *LinkBuffer) recalLen(delta int) (length int) {
+	return int(atomic.AddInt32(&b.length, int32(delta)))
 }
 
 // ------------------------------------------ implement link node ------------------------------------------
