@@ -207,13 +207,19 @@ func (b *LinkBuffer) readBinary(n int) (p []byte) {
 	b.recalLen(-n) // re-cal length
 
 	// single node
-	p = make([]byte, n)
 	l := b.read.Len()
 	if l >= n {
+		// TODO:
+		if c := cap(b.read.buf); c-n <= c/10 {
+			b.read.readonly = true
+			return b.read.Next(n)
+		}
+		p = make([]byte, n)
 		copy(p, b.read.Next(n))
 		return p
 	}
 	// multiple nodes
+	p = make([]byte, n)
 	var pIdx int
 	for ack := n; ack > 0; ack = ack - l {
 		l = b.read.Len()
