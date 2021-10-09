@@ -77,12 +77,24 @@ func writev(fd int, bs [][]byte, ivs []syscall.Iovec) (n int, err error) {
 // readv wraps the readv system call.
 // return 0, nil means EOF.
 func readv(fd int, bs [][]byte, ivs []syscall.Iovec) (n int, err error) {
+	if len(bs) == 1 {
+		return read(fd, bs[0])
+	}
 	iovLen := iovecs(bs, ivs)
 	if iovLen == 0 {
 		return 0, nil
 	}
 	// syscall
 	r, _, e := syscall.RawSyscall(syscall.SYS_READV, uintptr(fd), uintptr(unsafe.Pointer(&ivs[0])), uintptr(iovLen))
+	if e != 0 {
+		return int(r), syscall.Errno(e)
+	}
+	return int(r), nil
+}
+
+// read
+func read(fd int, b []byte) (n int, err error) {
+	r, _, e := syscall.RawSyscall(syscall.SYS_READ, uintptr(fd), uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)))
 	if e != 0 {
 		return int(r), syscall.Errno(e)
 	}
