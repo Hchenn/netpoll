@@ -117,12 +117,18 @@ func (b *LinkBuffer) Peek(n int) (p []byte, err error) {
 	if b.Len() < n {
 		return p, fmt.Errorf("link buffer peek[%d] not enough", n)
 	}
-	var node = b.read
 	// single node
+	for l := b.read.Len(); l == 0; l = b.read.Len() {
+		b.read = b.read.next
+	}
+
+	var node = b.read
 	l := node.Len()
 	if l >= n {
 		return node.Peek(n), nil
 	}
+	//fmt.Printf("l: %v, n: %v, b: %#v, n: %#v, off: %#v, malloc: %#v, cap: %#v, nextLen: %#v\n",
+	//	l, n, b.Len(), node.malloc, node.off, node.malloc, cap(node.buf), node.next.Len())
 	// multiple nodes
 	var pIdx int
 	if block1k < n && n <= mallocMax {
