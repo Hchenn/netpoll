@@ -108,6 +108,16 @@ func (c *connection) Skip(n int) (err error) {
 
 // Release implements Connection.
 func (c *connection) Release() (err error) {
+	if c.inputBuffer.Len() == 0 && c.lock(reading) {
+		// check after lock
+		if c.inputBuffer.Len() == 0 {
+			sum := c.inputBuffer.checkTail()
+			if sum > c.maxsize {
+				c.maxsize = sum
+			}
+		}
+		c.unlock(reading)
+	}
 	return c.inputBuffer.Release()
 }
 
@@ -260,7 +270,7 @@ func (c *connection) init(conn Conn, prepare OnPrepare) (err error) {
 	syscall.SetNonblock(c.fd, true)
 
 	// init buffer, barrier, finalizer
-	c.booksize = block1k / 2
+	c.booksize, c.maxsize = block1k/2, pagesize
 	c.readTrigger = make(chan struct{}, 1)
 	c.writeTrigger = make(chan error, 1)
 	c.inputBuffer, c.outputBuffer = NewLinkBuffer(pagesize), NewLinkBuffer()

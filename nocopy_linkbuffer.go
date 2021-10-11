@@ -528,12 +528,8 @@ func (b *LinkBuffer) GetBytes(p [][]byte) (vs [][]byte) {
 }
 
 // Book will grow and fill the slice p greater than min, only return len(vs) == 1
-func (b *LinkBuffer) Book(min int, p [][]byte) (vs [][]byte) {
-	var length, capacity = min, min
-	if min < pagesize {
-		capacity = pagesize
-	}
-
+func (b *LinkBuffer) Book(min, max int, p [][]byte) (vs [][]byte) {
+	var length, capacity = min, max
 	for {
 		l := cap(b.write.buf) - b.write.malloc
 		if l >= length {
@@ -566,7 +562,7 @@ func (b *LinkBuffer) Book(min int, p [][]byte) (vs [][]byte) {
 }
 
 // BookAck will ack the first n malloc bytes and discard the rest.
-func (b *LinkBuffer) BookAck(n int, waitsize int) (length int, err error) {
+func (b *LinkBuffer) BookAck(n int) (length int, err error) {
 	var l int
 	for ack := n; ack > 0; ack = ack - l {
 		l = b.flush.malloc - len(b.flush.buf)
@@ -583,19 +579,29 @@ func (b *LinkBuffer) BookAck(n int, waitsize int) (length int, err error) {
 	for node := b.flush.next; node != nil; node = node.next {
 		node.off, node.malloc, node.refer, node.buf = 0, 0, 1, node.buf[:0]
 	}
-
 	// re-cal length
 	length = b.recalLen(n)
-
-	// FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
-	if waitsize > 0 && waitsize <= length && cap(b.flush.buf) > pagesize {
-		if b.flush.next == nil {
-			b.flush.next = newLinkBufferNode(0)
-		}
-		b.flush = b.flush.next
-	}
-	b.write = b.flush
 	return length, nil
+}
+
+// FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
+func (b *LinkBuffer) checkTail() (sum int) {
+	if cap(b.flush.buf) <= pagesize {
+		return 0
+	}
+	// sum
+	for node := b.head; node != b.read; node = node.next {
+		sum += len(node.buf)
+	}
+	sum += len(b.read.buf)
+
+	// set nil tail
+	if b.flush.next == nil {
+		b.flush.next = newLinkBufferNode(0)
+	}
+	b.flush = b.flush.next
+	b.write = b.flush
+	return sum
 }
 
 // Reset resets the buffer to be empty,
