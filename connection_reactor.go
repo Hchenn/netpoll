@@ -99,14 +99,11 @@ func (c *connection) inputAck(n int) (err error) {
 		n = 0
 	}
 	// auto size, max is 128 kb
-	const maxbooksize = 8*pagesize
-	if n == c.booksize && c.booksize <= maxbooksize {
+	const maxbooksize = 16 * pagesize
+	if n == c.booksize && c.booksize < maxbooksize {
 		c.booksize = 2 * c.booksize
-		// } else if n < c.booksize/2 && c.booksize >= block1k {
-		// 	c.booksize = c.booksize / 2
 	}
 
-	// leftover := atomic.AddInt32(&c.waitReadSize, int32(-n))
 	wait := int(atomic.LoadInt32(&c.waitReadSize))
 	length, _ := c.inputBuffer.BookAck(n, wait)
 	if length >= wait {
