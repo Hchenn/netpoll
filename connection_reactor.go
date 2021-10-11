@@ -113,12 +113,12 @@ func (c *connection) inputAck(n int) (err error) {
 	length, _ := c.inputBuffer.BookAck(n)
 	c.unlock(reading)
 
-	wait := int(atomic.LoadInt32(&c.waitReadSize))
-	if length >= wait {
-		c.triggerRead()
+	var needTrigger = true
+	if length == n {
+		needTrigger = c.onRequest()
 	}
-	if wait <= 0 {
-		c.onRequest()
+	if needTrigger && length >= int(atomic.LoadInt32(&c.waitReadSize)) {
+		c.triggerRead()
 	}
 	return err
 }
