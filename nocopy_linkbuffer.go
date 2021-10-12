@@ -553,6 +553,11 @@ func (b *LinkBuffer) bookack2(n int) (length int, err error) {
 	b.write.malloc = n + len(b.write.buf)
 	b.write.buf = b.write.buf[:b.write.malloc]
 	b.flush = b.write
+
+	// nil head
+	if b.Len() == 0 && b.read.Len() == 0 {
+		b.read = b.read.next
+	}
 	// re-cal length
 	length = b.recalLen(n)
 	return length, nil
