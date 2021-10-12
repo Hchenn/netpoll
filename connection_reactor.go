@@ -109,7 +109,7 @@ func (c *connection) inputAck(n int) (err error) {
 	if n == c.booksize && c.booksize < maxbooksize {
 		c.booksize = 2 * c.booksize
 	}
-	length, _ := c.inputBuffer.BookAck(n)
+	length, _ := c.inputBuffer.bookack2(n)
 	if c.maxsize < length {
 		c.maxsize = length
 	}
