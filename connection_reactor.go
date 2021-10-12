@@ -108,11 +108,11 @@ func (c *connection) inputAck(n int) (err error) {
 	const maxbooksize = 16 * pagesize
 	if n == c.booksize && c.booksize < maxbooksize {
 		c.booksize = 2 * c.booksize
-		if c.maxsize < c.booksize {
-			c.maxsize = c.booksize
-		}
 	}
 	length, _ := c.inputBuffer.BookAck(n)
+	if c.maxsize < length {
+		c.maxsize = length
+	}
 	c.unlock(reading)
 
 	var needTrigger = true

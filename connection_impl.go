@@ -111,10 +111,11 @@ func (c *connection) Release() (err error) {
 	if c.inputBuffer.Len() == 0 && c.lock(reading) {
 		// check after lock
 		if c.inputBuffer.Len() == 0 {
-			sum := c.inputBuffer.checkTail()
+			sum := c.inputBuffer.checkSum()
 			if sum > c.maxsize {
 				c.maxsize = sum
 			}
+			c.inputBuffer.checkTail(c.maxsize)
 		}
 		c.unlock(reading)
 	}

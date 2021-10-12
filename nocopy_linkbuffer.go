@@ -535,17 +535,16 @@ func min(a, b int) int {
 }
 
 func (b *LinkBuffer) book2(want, max int) (p []byte) {
-	pre := max - b.Len()
-	if pre <= 0 {
-		pre = want
-	}
+	// pre := max - b.Len()
+	// if pre <= 0 {
+	// 	pre = want
+	// }
 	l := cap(b.write.buf) - b.write.malloc
-	if pre > l {
+	if l == 0 {
 		b.write.next = newLinkBufferNode(max)
 		b.write = b.write.next
-	} else {
-		want = min(l, want)
 	}
+	want = min(l, want)
 	return b.write.Malloc(want)
 }
 
@@ -562,11 +561,17 @@ func (b *LinkBuffer) bookack2(n int) (length int, err error) {
 // Book will grow and fill the slice p greater than min, only return len(vs) == 1
 func (b *LinkBuffer) Book(min, max int, p [][]byte) (vs [][]byte) {
 	var length, capacity = min, max
+	var i, l int
 	for {
-		l := cap(b.write.buf) - b.write.malloc
+		l = cap(b.write.buf) - b.write.malloc
 		if l >= length {
-			p[0] = b.write.Malloc(length)
-			return p[:1]
+			p[i] = b.write.Malloc(length)
+			return p[:i]
+		}
+		if l > 0 {
+			p[i] = b.write.Malloc(l)
+			i++
+			length -= l
 		}
 		if b.write.next == nil {
 			b.write.next = newLinkBufferNode(capacity)
@@ -616,24 +621,27 @@ func (b *LinkBuffer) BookAck(n int) (length int, err error) {
 	return length, nil
 }
 
-// FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
-func (b *LinkBuffer) checkTail() (sum int) {
+func (b *LinkBuffer) checkSum() (sum int) {
 	// sum
 	for node := b.head; node != b.read; node = node.next {
 		sum += len(node.buf)
 	}
 	sum += len(b.read.buf)
+	return sum
+}
 
-	if cap(b.write.buf) <= pagesize {
+// FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
+func (b *LinkBuffer) checkTail(maxsize int) {
+	if maxsize <= pagesize {
 		b.write.Reset()
-		return sum
+		return
 	}
 
 	// set nil tail
 	b.write.next = newLinkBufferNode(0)
 	b.write = b.write.next
 	b.flush = b.write
-	return sum
+	return
 }
 
 // Reset resets the buffer to be empty,
