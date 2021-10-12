@@ -80,12 +80,14 @@ func (c *connection) inputs(vs [][]byte) (rs [][]byte) {
 	// 	c.maxsize = wait
 	// }
 	// n := c.maxsize - c.inputBuffer.Len()
-	// if n < 512 {
+	// if c.booksize < n {
+	// 	n = c.booksize
+	// } else if n < 512 {
 	// 	n = 512
 	// }
-
-	return c.inputBuffer.Book(c.booksize, c.maxsize, vs)
-
+	// return c.inputBuffer.Book(c.booksize, c.maxsize, vs)
+	vs[0] = c.inputBuffer.book2(c.booksize, c.maxsize)
+	return vs[:1]
 	// if n <= pagesize {
 	// 	return c.inputBuffer.Book(pagesize, vs)
 	// }

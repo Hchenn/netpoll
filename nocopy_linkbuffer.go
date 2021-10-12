@@ -527,6 +527,38 @@ func (b *LinkBuffer) GetBytes(p [][]byte) (vs [][]byte) {
 	return p[:i]
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (b *LinkBuffer) book2(want, max int) (p []byte) {
+	pre := max - b.Len()
+	if pre <= 0 {
+		pre = want
+	}
+	l := cap(b.write.buf) - b.write.malloc
+	if pre > l {
+		b.write.next = newLinkBufferNode(max)
+		b.write = b.write.next
+	} else {
+		want = min(l, want)
+	}
+	return b.write.Malloc(want)
+}
+
+// BookAck will ack the first n malloc bytes and discard the rest.
+func (b *LinkBuffer) bookack2(n int) (length int, err error) {
+	b.write.malloc = n + len(b.write.buf)
+	b.write.buf = b.write.buf[:b.write.malloc]
+	b.flush = b.write
+	// re-cal length
+	length = b.recalLen(n)
+	return length, nil
+}
+
 // Book will grow and fill the slice p greater than min, only return len(vs) == 1
 func (b *LinkBuffer) Book(min, max int, p [][]byte) (vs [][]byte) {
 	var length, capacity = min, max
@@ -586,21 +618,21 @@ func (b *LinkBuffer) BookAck(n int) (length int, err error) {
 
 // FIXME: The tail node must not be larger than 8KB to prevent Out Of Memory.
 func (b *LinkBuffer) checkTail() (sum int) {
-	if cap(b.flush.buf) <= pagesize {
-		return 0
-	}
 	// sum
 	for node := b.head; node != b.read; node = node.next {
 		sum += len(node.buf)
 	}
 	sum += len(b.read.buf)
 
-	// set nil tail
-	if b.flush.next == nil {
-		b.flush.next = newLinkBufferNode(0)
+	if cap(b.write.buf) <= pagesize {
+		b.write.Reset()
+		return sum
 	}
-	b.flush = b.flush.next
-	b.write = b.flush
+
+	// set nil tail
+	b.write.next = newLinkBufferNode(0)
+	b.write = b.write.next
+	b.flush = b.write
 	return sum
 }
 
@@ -663,12 +695,15 @@ func (node *linkBufferNode) IsEmpty() (ok bool) {
 	return node.off == len(node.buf)
 }
 
-//
-// func (node *linkBufferNode) Reset() (err error) {
-// 	node.off, node.malloc, node.refer, node.next, node.origin = 0, 0, 1, nil, nil
-// 	node.buf = node.buf[:0]
-// 	return nil
-// }
+func (node *linkBufferNode) Reset() {
+	if node.origin != nil || atomic.LoadInt32(&node.refer) != 1 {
+		return
+	}
+	node.off, node.malloc = 0, 0
+	node.buf = node.buf[:0]
+	return
+}
+
 //
 // func (node *linkBufferNode) Close() (err error) {
 // 	node.off, node.malloc, node.refer = 0, 0, 0
