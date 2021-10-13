@@ -69,14 +69,14 @@ func (c *connection) closeBuffer() {
 func (c *connection) inputs(vs [][]byte) (rs [][]byte) {
 	n := int(atomic.LoadInt32(&c.waitReadSize))
 	if n <= pagesize {
-		return c.inputBuffer.Book(pagesize, vs)
+		return c.inputBuffer.Book(pagesize, c.inputBarrier.bs)
 	}
 
 	n -= c.inputBuffer.Len()
 	if n < pagesize {
 		n = pagesize
 	}
-	return c.inputBuffer.Book(n, vs)
+	return c.inputBuffer.Book(n, c.inputBarrier.bs)
 }
 
 // inputAck implements FDOperator.
@@ -99,7 +99,7 @@ func (c *connection) outputs(vs [][]byte) (rs [][]byte, supportZeroCopy bool) {
 		c.rw2r()
 		return rs, c.supportZeroCopy
 	}
-	rs = c.outputBuffer.GetBytes(vs)
+	rs = c.outputBuffer.GetBytes(c.outputBarrier.bs)
 	return rs, c.supportZeroCopy
 }
 

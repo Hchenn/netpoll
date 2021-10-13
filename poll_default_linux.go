@@ -72,7 +72,7 @@ type pollArgs struct {
 func (a *pollArgs) reset(size, caps int) {
 	a.size, a.caps = size, caps
 	a.events = make([]epollevent, size)
-	a.barriers.bs = make([][]byte, a.caps)
+	// a.barriers.bs = make([][]byte, a.caps)
 	a.barriers.ivs = make([]syscall.Iovec, a.caps)
 }
 
@@ -141,7 +141,7 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 					operator.OnRead(p)
 				} else {
 					// for connection
-					var bs = operator.Inputs(p.barriers.bs)
+					var bs = operator.Inputs(nil)
 					if len(bs) > 0 {
 						var n, err = readv(operator.FD, bs, p.barriers.ivs)
 						operator.InputAck(n)
@@ -159,7 +159,7 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 					operator.OnWrite(p)
 				} else {
 					// for connection
-					var bs, supportZeroCopy = operator.Outputs(p.barriers.bs)
+					var bs, supportZeroCopy = operator.Outputs(nil)
 					if len(bs) > 0 {
 						// TODO: Let the upper layer pass in whether to use ZeroCopy.
 						var n, err = sendmsg(operator.FD, bs, p.barriers.ivs, false && supportZeroCopy)
