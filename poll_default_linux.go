@@ -136,22 +136,23 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 			}
 		default:
 			if evt&syscall.EPOLLIN != 0 {
-				if operator.OnRead != nil {
-					// for non-connection
-					operator.OnRead(p)
-				} else {
-					// for connection
-					var bs = operator.Inputs(nil)
-					if len(bs) > 0 {
-						var n, err = readv(operator.FD, bs, p.barriers.ivs)
-						operator.InputAck(n)
-						if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
-							log.Printf("readv(fd=%d) failed: %s", operator.FD, err.Error())
-							hups = append(hups, operator)
-							break
-						}
-					}
-				}
+				operator.OnRead(p)
+				// if operator.OnRead != nil {
+				// 	// for non-connection
+				// 	operator.OnRead(p)
+				// } else {
+				// 	// for connection
+				// 	var bs = operator.Inputs(nil)
+				// 	if len(bs) > 0 {
+				// 		var n, err = readv(operator.FD, bs, p.barriers.ivs)
+				// 		operator.InputAck(n)
+				// 		if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
+				// 			log.Printf("readv(fd=%d) failed: %s", operator.FD, err.Error())
+				// 			hups = append(hups, operator)
+				// 			break
+				// 		}
+				// 	}
+				// }
 			}
 			if evt&syscall.EPOLLOUT != 0 {
 				if operator.OnWrite != nil {

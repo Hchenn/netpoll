@@ -15,6 +15,7 @@
 package netpoll
 
 import (
+	"log"
 	"sync/atomic"
 	"syscall"
 )
@@ -63,6 +64,21 @@ func (c *connection) closeBuffer() {
 
 	c.outputBuffer.Close()
 	barrierPool.Put(c.outputBarrier)
+}
+
+// inputs implements FDOperator.
+func (c *connection) onRead(p Poll) error {
+	var bs = c.inputs(nil)
+	if len(bs) == 0 {
+		return nil
+	}
+	var n, err = readv(c.Fd(), bs, c.inputBarrier.ivs)
+	c.inputAck(n)
+	if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
+		log.Printf("readv(fd=%d) failed: %s", c.Fd(), err.Error())
+		c.onHup(p)
+	}
+	return err
 }
 
 // inputs implements FDOperator.

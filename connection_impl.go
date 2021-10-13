@@ -291,7 +291,7 @@ func (c *connection) checkNetFD(conn Conn) {
 func (c *connection) initFDOperator() {
 	op := allocop()
 	op.FD = c.fd
-	op.OnRead, op.OnWrite, op.OnHup = nil, nil, c.onHup
+	op.OnRead, op.OnWrite, op.OnHup = c.onRead, nil, c.onHup
 	op.Inputs, op.InputAck = c.inputs, c.inputAck
 	op.Outputs, op.OutputAck = c.outputs, c.outputAck
 
