@@ -66,16 +66,14 @@ type pollArgs struct {
 	size     int
 	caps     int
 	events   []epollevent
-	barriers []barrier
+	barriers barrier
 }
 
 func (a *pollArgs) reset(size, caps int) {
 	a.size, a.caps = size, caps
-	a.events, a.barriers = make([]epollevent, size), make([]barrier, size)
-	for i := range a.barriers {
-		a.barriers[i].bs = make([][]byte, a.caps)
-		a.barriers[i].ivs = make([]syscall.Iovec, a.caps)
-	}
+	a.events = make([]epollevent, size)
+	a.barriers.bs = make([][]byte, a.caps)
+	a.barriers.ivs = make([]syscall.Iovec, a.caps)
 }
 
 // Wait implements Poll.
@@ -143,9 +141,9 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 					operator.OnRead(p)
 				} else {
 					// for connection
-					var bs = operator.Inputs(p.barriers[i].bs)
+					var bs = operator.Inputs(p.barriers.bs)
 					if len(bs) > 0 {
-						var n, err = readv(operator.FD, bs, p.barriers[i].ivs)
+						var n, err = readv(operator.FD, bs, p.barriers.ivs)
 						operator.InputAck(n)
 						if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
 							log.Printf("readv(fd=%d) failed: %s", operator.FD, err.Error())
@@ -161,10 +159,10 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 					operator.OnWrite(p)
 				} else {
 					// for connection
-					var bs, supportZeroCopy = operator.Outputs(p.barriers[i].bs)
+					var bs, supportZeroCopy = operator.Outputs(p.barriers.bs)
 					if len(bs) > 0 {
 						// TODO: Let the upper layer pass in whether to use ZeroCopy.
-						var n, err = sendmsg(operator.FD, bs, p.barriers[i].ivs, false && supportZeroCopy)
+						var n, err = sendmsg(operator.FD, bs, p.barriers.ivs, false && supportZeroCopy)
 						operator.OutputAck(n)
 						if err != nil && err != syscall.EAGAIN {
 							log.Printf("sendmsg(fd=%d) failed: %s", operator.FD, err.Error())
