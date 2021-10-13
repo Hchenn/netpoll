@@ -170,7 +170,11 @@ func (c *connection) Flush() error {
 	}
 	defer c.unlock(flushing)
 	c.outputBuffer.Flush()
-	return c.flush()
+	globalqueue.Add(func() (op *FDOperator) {
+		return c.operator
+	})
+	return <-c.writeTrigger
+	// return c.flush()
 }
 
 // MallocAck implements Connection.
