@@ -84,13 +84,17 @@ func (c *connection) inputAck(n int) (err error) {
 	if n < 0 {
 		n = 0
 	}
-	leftover := atomic.AddInt32(&c.waitReadSize, int32(-n))
-	err = c.inputBuffer.BookAck(n, leftover <= 0)
-	if leftover <= 0 {
+	waitSize := int(atomic.LoadInt32(&c.waitReadSize))
+	length := c.inputBuffer.BookAck(n)
+	if waitSize <= 0 {
+		return c.onRequest()
+	}
+
+	if waitSize <= length {
+		c.inputBuffer.nilTail()
 		c.triggerRead()
 	}
-	c.onRequest()
-	return err
+	return nil
 }
 
 // outputs implements FDOperator.
