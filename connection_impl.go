@@ -41,6 +41,8 @@ type connection struct {
 	inputBarrier    *barrier
 	outputBarrier   *barrier
 	supportZeroCopy bool
+	maxsize         int
+	booksize        int
 }
 
 var _ Connection = &connection{}
@@ -106,6 +108,17 @@ func (c *connection) Skip(n int) (err error) {
 
 // Release implements Connection.
 func (c *connection) Release() (err error) {
+	if c.inputBuffer.Len() == 0 && c.lock(reading) {
+		// check after lock
+		if c.inputBuffer.Len() == 0 {
+			sum := c.inputBuffer.checkSum()
+			if sum > c.maxsize {
+				c.maxsize = sum
+			}
+			c.inputBuffer.checkTail(c.maxsize)
+		}
+		c.unlock(reading)
+	}
 	return c.inputBuffer.Release()
 }
 
@@ -258,6 +271,7 @@ func (c *connection) init(conn Conn, prepare OnPrepare) (err error) {
 	syscall.SetNonblock(c.fd, true)
 
 	// init buffer, barrier, finalizer
+	c.booksize, c.maxsize = block1k/2, pagesize
 	c.readTrigger = make(chan struct{}, 1)
 	c.writeTrigger = make(chan error, 1)
 	c.inputBuffer, c.outputBuffer = NewLinkBuffer(pagesize), NewLinkBuffer()
@@ -327,11 +341,14 @@ func (c *connection) triggerWrite(err error) {
 
 // waitRead will wait full n bytes.
 func (c *connection) waitRead(n int) (err error) {
-	leftover := n - c.inputBuffer.Len()
-	if leftover <= 0 {
+	if n < c.inputBuffer.Len() {
 		return nil
 	}
-	atomic.StoreInt32(&c.waitReadSize, int32(leftover))
+	// leftover := n - c.inputBuffer.Len()
+	// if leftover <= 0 {
+	// 	return nil
+	// }
+	atomic.StoreInt32(&c.waitReadSize, int32(n))
 	defer atomic.StoreInt32(&c.waitReadSize, 0)
 	if c.readTimeout > 0 {
 		return c.waitReadWithTimeout(n)

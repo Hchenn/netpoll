@@ -32,6 +32,7 @@ type key int32
 const (
 	closing key = iota
 	processing
+	reading
 	writing
 	inputBuffer
 	outputBuffer
