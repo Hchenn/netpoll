@@ -94,34 +94,35 @@ func (s *server) Close(ctx context.Context) error {
 
 // OnRead implements FDOperator.
 func (s *server) OnRead(p Poll) error {
-	// accept socket
-	conn, err := s.ln.Accept()
-	if err != nil {
-		// shut down
-		if strings.Contains(err.Error(), "closed") {
-			s.operator.Control(PollDetach)
-			s.quit(err)
+	for {
+		// accept socket
+		conn, err := s.ln.Accept()
+		if err != nil {
+			// shut down
+			if strings.Contains(err.Error(), "closed") {
+				s.operator.Control(PollDetach)
+				s.quit(err)
+				return err
+			}
+			log.Println("accept conn failed:", err.Error())
 			return err
 		}
-		log.Println("accept conn failed:", err.Error())
-		return err
+		if conn == nil {
+			return nil
+		}
+		// store & register connection
+		var connection = &connection{}
+		connection.init(conn.(Conn), s.prepare)
+		if !connection.IsActive() {
+			return nil
+		}
+		var fd = conn.(Conn).Fd()
+		connection.AddCloseCallback(func(connection Connection) error {
+			s.connections.Delete(fd)
+			return nil
+		})
+		s.connections.Store(fd, connection)
 	}
-	if conn == nil {
-		return nil
-	}
-	// store & register connection
-	var connection = &connection{}
-	connection.init(conn.(Conn), s.prepare)
-	if !connection.IsActive() {
-		return nil
-	}
-	var fd = conn.(Conn).Fd()
-	connection.AddCloseCallback(func(connection Connection) error {
-		s.connections.Delete(fd)
-		return nil
-	})
-	s.connections.Store(fd, connection)
-	return nil
 }
 
 // OnHup implements FDOperator.
