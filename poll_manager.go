@@ -30,7 +30,12 @@ func setLoadBalance(lb LoadBalance) error {
 // manage all pollers
 var pollmanager *manager
 
+var mainpoll Poll
+
 func init() {
+	mainpoll = openDefaultPoll()
+	go mainpoll.Wait()
+
 	pollmanager = &manager{}
 	pollmanager.SetLoadBalance(RoundRobin)
 	pollmanager.SetNumLoops(defaultNumLoops())
