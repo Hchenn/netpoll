@@ -541,6 +541,7 @@ func (b *LinkBuffer) book2(want, max int) (p []byte) {
 	// }
 	l := cap(b.write.buf) - b.write.malloc
 	if l == 0 {
+		l = max
 		b.write.next = newLinkBufferNode(max)
 		b.write = b.write.next
 	}
