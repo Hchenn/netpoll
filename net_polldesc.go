@@ -26,10 +26,12 @@ func newPollDesc(fd int) *pollDesc {
 
 	op.FD = fd
 	op.OnWrite = func(p Poll) error {
-		select {
-		case pd.writeTicker <- nil:
-		default:
-		}
+		go func() {
+			select {
+			case pd.writeTicker <- nil:
+			default:
+			}
+		}()
 		return nil
 	}
 	op.OnHup = func(p Poll) error {
