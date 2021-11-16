@@ -15,6 +15,7 @@
 package netpoll
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -150,6 +151,9 @@ func (c *connection) ReadByte() (b byte, err error) {
 
 // Malloc implements Connection.
 func (c *connection) Malloc(n int) (buf []byte, err error) {
+	if n > mallocMax {
+		defer fmt.Printf("connfd[%d] malloc > 8kb, malloc=%d\n", c.Fd(), n)
+	}
 	return c.outputBuffer.Malloc(n)
 }
 
@@ -168,7 +172,13 @@ func (c *connection) Flush() error {
 	if c.IsActive() && c.lock(outputBuffer) {
 		c.outputBuffer.Flush()
 		c.unlock(outputBuffer)
-		return c.flush()
+		n := c.outputBuffer.Len()
+		err := c.flush()
+		if n > mallocMax {
+			fmt.Printf("connfd[%d] flush > 8kb, flush_size=%d, now_len=%d, now_malloc=%d, err=%v\n",
+				c.Fd(), n, c.outputBuffer.Len(), c.outputBuffer.MallocLen(), err)
+		}
+		return err
 	}
 	return Exception(ErrConnClosed, "when flush")
 }
