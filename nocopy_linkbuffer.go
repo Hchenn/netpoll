@@ -734,8 +734,8 @@ func unsafeStringToSlice(s string) (b []byte) {
 	return b
 }
 
-// mallocMax is 8MB
-const mallocMax = block8k * block1k
+// mallocMax is 1GB
+const mallocMax = block1k * block1k * block1k
 
 // malloc limits the cap of the buffer from mcache.
 func malloc(size, capacity int) []byte {
