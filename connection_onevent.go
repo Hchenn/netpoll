@@ -107,7 +107,8 @@ func (c *connection) onRequest() (needTrigger bool) {
 		var handler = process.(OnRequest)
 	START:
 		// NOTE: loop processing, which is useful for streaming.
-		for c.Reader().Len() > 0 && c.IsActive() {
+		//for c.Reader().Len() > 0 && c.IsActive() {
+		for c.IsActive() {
 			// Single request processing, blocking allowed.
 			handler(c.ctx, c)
 		}
