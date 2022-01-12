@@ -22,7 +22,7 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
-var sq = NewShardQueue(runtime.GOMAXPROCS(0))
+//var sq = NewShardQueue(runtime.GOMAXPROCS(0))
 
 // NewShardQueue .
 func NewShardQueue(size int) (queue *ShardQueue) {

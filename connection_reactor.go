@@ -126,7 +126,7 @@ func (c *connection) rw2r() {
 
 // flush write data directly.
 func (c *connection) flush() error {
-	sq.Add(c.flush2)
+	c.operator.sq.Add(c.flush2)
 	err := <-c.writeTrigger
 	return err
 }

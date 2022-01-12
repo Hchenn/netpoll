@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !race
 // +build !race
 
 package netpoll
@@ -43,6 +44,7 @@ func openDefaultPoll() *defaultPoll {
 		panic(err)
 	}
 
+	poll.sq = NewShardQueue(runtime.GOMAXPROCS(0))
 	poll.Reset = poll.reset
 	poll.Handler = poll.handler
 
@@ -52,6 +54,7 @@ func openDefaultPoll() *defaultPoll {
 }
 
 type defaultPoll struct {
+	sq *ShardQueue
 	pollArgs
 	fd      int         // epoll fd
 	wop     *FDOperator // eventfd, wake epoll_wait
@@ -208,9 +211,11 @@ func (p *defaultPoll) Control(operator *FDOperator, event PollEvent) error {
 	switch event {
 	case PollReadable:
 		operator.inuse()
+		operator.sq = p.sq
 		op, evt.events = syscall.EPOLL_CTL_ADD, syscall.EPOLLIN|syscall.EPOLLRDHUP|syscall.EPOLLERR
 	case PollModReadable:
 		operator.inuse()
+		operator.sq = p.sq
 		op, evt.events = syscall.EPOLL_CTL_MOD, syscall.EPOLLIN|syscall.EPOLLRDHUP|syscall.EPOLLERR
 	case PollDetach:
 		defer operator.unused()

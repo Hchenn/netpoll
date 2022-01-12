@@ -38,7 +38,7 @@ func init() {
 
 func defaultNumLoops() int {
 	procs := runtime.GOMAXPROCS(0)
-	loops := 1
+	loops := 2
 	// Loops produce events that handlers consume,
 	// so the producer should be faster than consumer otherwise it will have a bottleneck.
 	// But there is no universal option that could be appropriate for any use cases,

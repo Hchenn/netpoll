@@ -45,6 +45,7 @@ type FDOperator struct {
 	// private, used by operatorCache
 	next  *FDOperator
 	state int32 // CAS: 0(unused) 1(inuse) 2(do-done)
+	sq    *ShardQueue
 }
 
 func (op *FDOperator) Control(event PollEvent) error {
@@ -87,4 +88,5 @@ func (op *FDOperator) reset() {
 	op.Inputs, op.InputAck = nil, nil
 	op.Outputs, op.OutputAck = nil, nil
 	op.poll = nil
+	op.sq = nil
 }
