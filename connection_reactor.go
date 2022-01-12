@@ -131,7 +131,9 @@ func (c *connection) flush() error {
 	}
 	// TODO: Let the upper layer pass in whether to use ZeroCopy.
 	var bs = c.outputBuffer.GetBytes(c.outputBarrier.bs)
+	Pin()
 	var n, err = sendmsg(c.fd, bs, c.outputBarrier.ivs, false && c.supportZeroCopy)
+	Unpin()
 	if err != nil && err != syscall.EAGAIN {
 		return Exception(err, "when flush")
 	}
