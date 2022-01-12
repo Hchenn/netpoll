@@ -15,6 +15,7 @@
 package netpoll
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -355,6 +356,7 @@ func (c *connection) waitRead(n int) (err error) {
 	}
 	atomic.StoreInt32(&c.waitReadSize, int32(n))
 	defer atomic.StoreInt32(&c.waitReadSize, 0)
+	runtime.Gosched()
 	if c.readTimeout > 0 {
 		return c.waitReadWithTimeout(n)
 	}
