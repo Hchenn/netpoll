@@ -19,7 +19,6 @@ package netpoll
 
 import (
 	"log"
-	"runtime"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -90,16 +89,16 @@ func (p *defaultPoll) Wait() (err error) {
 		if n == p.size && p.size < 128*1024 {
 			p.Reset(p.size<<1, caps)
 		}
-		if n < 5 {
-			time.Sleep(100 * time.Microsecond)
-		}
 		n, err = EpollWait(p.fd, p.events, msec)
 		if err != nil && err != syscall.EINTR {
 			return err
 		}
+		if n < 5 {
+			time.Sleep(10 * time.Microsecond)
+		}
 		if n <= 0 {
 			msec = -1
-			runtime.Gosched()
+			//runtime.Gosched()
 			continue
 		}
 		msec = 0
