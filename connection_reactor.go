@@ -126,33 +126,40 @@ func (c *connection) rw2r() {
 
 // flush write data directly.
 func (c *connection) flush() error {
+	sq.Add(c.flush2)
+	err := <-c.writeTrigger
+	return err
+}
+
+// flush write data directly.
+func (c *connection) flush2() {
 	if c.outputBuffer.IsEmpty() {
-		return nil
+		c.writeTrigger <- nil
+		return
 	}
 	// TODO: Let the upper layer pass in whether to use ZeroCopy.
 	var bs = c.outputBuffer.GetBytes(c.outputBarrier.bs)
-	Pin()
 	var n, err = sendmsg(c.fd, bs, c.outputBarrier.ivs, false && c.supportZeroCopy)
-	Unpin()
 	if err != nil && err != syscall.EAGAIN {
-		return Exception(err, "when flush")
+		c.writeTrigger <- Exception(err, "when flush")
+		return
 	}
 	if n > 0 {
 		err = c.outputBuffer.Skip(n)
 		c.outputBuffer.Release()
 		if err != nil {
-			return Exception(err, "when flush")
+			c.writeTrigger <- Exception(err, "when flush")
+			return
 		}
 	}
 	// return if write all buffer.
 	if c.outputBuffer.IsEmpty() {
-		return nil
+		c.writeTrigger <- nil
+		return
 	}
 	err = c.operator.Control(PollR2RW)
 	if err != nil {
-		return Exception(err, "when flush")
+		c.writeTrigger <- Exception(err, "when flush")
 	}
-
-	err = <-c.writeTrigger
-	return err
+	return
 }
