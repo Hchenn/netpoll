@@ -65,13 +65,17 @@ type queueTrigger struct {
 
 // Add adds to q.getters[shard]
 func (q *ShardQueue) Add(gts ...WriterGetter) {
-	shard := atomic.AddInt32(&q.idx, 1) % q.size
-	q.lock(shard)
-	trigger := len(q.getters[shard]) == 0
-	q.getters[shard] = append(q.getters[shard], gts...)
-	q.unlock(shard)
-	if trigger {
-		q.triggering(shard)
+	for {
+		shard := atomic.AddInt32(&q.idx, 1) % q.size
+		if q.trylock(shard) {
+			trigger := len(q.getters[shard]) == 0
+			q.getters[shard] = append(q.getters[shard], gts...)
+			q.unlock(shard)
+			if trigger {
+				q.triggering(shard)
+			}
+			return
+		}
 	}
 }
 
@@ -139,6 +143,11 @@ func (q *ShardQueue) lock(shard int32) {
 	for !atomic.CompareAndSwapInt32(&q.locks[shard], 0, 1) {
 		runtime.Gosched()
 	}
+}
+
+// lock shard.
+func (q *ShardQueue) trylock(shard int32) bool {
+	return atomic.CompareAndSwapInt32(&q.locks[shard], 0, 1)
 }
 
 // unlock shard.
