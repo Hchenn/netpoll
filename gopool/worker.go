@@ -17,12 +17,9 @@ package gopool
 import (
 	"context"
 	"fmt"
+	"github.com/bytedance/gopkg/util/logger"
 	"runtime/debug"
 	"sync"
-	"sync/atomic"
-	"time"
-
-	"github.com/bytedance/gopkg/util/logger"
 )
 
 var workerPool sync.Pool
@@ -42,20 +39,20 @@ func newWorker() interface{} {
 	return w
 }
 
-var newtask, reusetask, emptytask int32
+//var newtask, reusetask, emptytask int32
 
 func init() {
-	go func() {
-		for range time.Tick(time.Second) {
-			n, r, e := atomic.LoadInt32(&newtask), atomic.LoadInt32(&reusetask), atomic.LoadInt32(&emptytask)
-			fmt.Printf("new_task=%d, reuse_task=%d, empty_task=%d\n", n, r, e)
-		}
-	}()
+	//go func() {
+	//	for range time.Tick(time.Second) {
+	//		n, r, e := atomic.LoadInt32(&newtask), atomic.LoadInt32(&reusetask), atomic.LoadInt32(&emptytask)
+	//		fmt.Printf("new_task=%d, reuse_task=%d, empty_task=%d\n", n, r, e)
+	//	}
+	//}()
 }
 
 func (w *worker) run(fn func()) {
 	go func() {
-		atomic.AddInt32(&newtask, 1)
+		//atomic.AddInt32(&newtask, 1)
 		defer func() {
 			if r := recover(); r != nil {
 				ctx := context.Background()
@@ -73,7 +70,7 @@ func (w *worker) run(fn func()) {
 			if !active {
 				break
 			}
-			atomic.AddInt32(&reusetask, 1)
+			//atomic.AddInt32(&reusetask, 1)
 			f()
 		}
 		// if there's no task to do, exit
