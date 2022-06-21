@@ -97,9 +97,17 @@ func (c *connection) onPrepare(opts *options) (err error) {
 		c.SetReadTimeout(opts.readTimeout)
 		c.SetIdleTimeout(opts.idleTimeout)
 
+		if opts.onFactory != nil {
+			c.on = opts.onFactory.NewOnEvent(c)
+			c.SetOnRequest(c.on.OnData)
+		}
+
 		// calling prepare first and then register.
 		if opts.onPrepare != nil {
 			c.ctx = opts.onPrepare(c)
+		}
+		if c.on != nil {
+			c.on.OnActive(c.ctx, c)
 		}
 	}
 

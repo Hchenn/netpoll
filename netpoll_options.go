@@ -62,6 +62,13 @@ func WithOnConnect(onConnect OnConnect) Option {
 	}}
 }
 
+// WithOnEventFactory registers the OnEventFactory to EventLoop.
+func WithOnEventFactory(onFactory OnEventFactory) Option {
+	return Option{func(op *options) {
+		op.onFactory = onFactory
+	}}
+}
+
 // WithReadTimeout sets the read timeout of connections.
 func WithReadTimeout(timeout time.Duration) Option {
 	return Option{func(op *options) {
@@ -82,6 +89,7 @@ type Option struct {
 }
 
 type options struct {
+	onFactory   OnEventFactory
 	onPrepare   OnPrepare
 	onConnect   OnConnect
 	onRequest   OnRequest

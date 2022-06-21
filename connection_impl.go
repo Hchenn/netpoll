@@ -27,6 +27,7 @@ const (
 
 // connection is the implement of Connection
 type connection struct {
+	on OnEvent
 	netFD
 	onEvent
 	locker
