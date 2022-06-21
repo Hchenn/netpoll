@@ -61,4 +61,6 @@ const (
 
 	// PollRW2R is used to remove the writable monitor of FDOperator, generally used with PollR2RW.
 	PollRW2R PollEvent = 0x6
+
+	PollReadableLT PollEvent = 0x10
 )

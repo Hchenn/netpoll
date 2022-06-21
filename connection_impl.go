@@ -15,6 +15,7 @@
 package netpoll
 
 import (
+	"io"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -247,22 +248,26 @@ func (c *connection) WriteByte(b byte) (err error) {
 
 // Read behavior is the same as net.Conn, it will return io.EOF if buffer is empty.
 func (c *connection) Read(p []byte) (n int, err error) {
-	l := len(p)
-	if l == 0 {
+	if len(p) == 0 {
 		return 0, nil
 	}
-	if err = c.waitRead(1); err != nil {
-		return 0, err
+	for {
+		n, err = syscall.Read(c.fd, p)
+		if err != nil {
+			n = 0
+			if err == syscall.EINTR {
+				continue
+			}
+			if err == syscall.EAGAIN && c.IsActive() {
+				<-c.readTrigger
+				continue
+			}
+		}
+		if n == 0 && err == nil {
+			err = io.EOF
+		}
+		return n, err
 	}
-	if has := c.inputBuffer.Len(); has < l {
-		l = has
-	}
-	src, err := c.inputBuffer.Next(l)
-	n = copy(p, src)
-	if err == nil {
-		err = c.inputBuffer.Release()
-	}
-	return n, err
 }
 
 // Write will Flush soon.
@@ -272,11 +277,26 @@ func (c *connection) Write(p []byte) (n int, err error) {
 	}
 	defer c.unlock(flushing)
 
-	dst, _ := c.outputBuffer.Malloc(len(p))
-	n = copy(dst, p)
-	c.outputBuffer.Flush()
-	err = c.flush()
-	return n, err
+	var nn int
+	for {
+		n, err = syscall.Write(c.fd, p[nn:])
+		if n > 0 {
+			nn += n
+		}
+		if nn == len(p) {
+			return nn, err
+		}
+		if err == syscall.EAGAIN && c.IsActive() {
+			<-c.writeTrigger
+			continue
+		}
+		if err != nil {
+			return nn, err
+		}
+		if n == 0 {
+			return nn, io.ErrUnexpectedEOF
+		}
+	}
 }
 
 // Close implements Connection.
@@ -301,8 +321,8 @@ func (c *connection) init(conn Conn, opts *options) (err error) {
 	c.readTrigger = make(chan struct{}, 1)
 	c.writeTrigger = make(chan error, 1)
 	c.bookSize, c.maxSize = block1k/2, pagesize
-	c.inputBuffer, c.outputBuffer = NewLinkBuffer(pagesize), NewLinkBuffer()
-	c.inputBarrier, c.outputBarrier = barrierPool.Get().(*barrier), barrierPool.Get().(*barrier)
+	//c.inputBuffer, c.outputBuffer = NewLinkBuffer(pagesize), NewLinkBuffer()
+	//c.inputBarrier, c.outputBarrier = barrierPool.Get().(*barrier), barrierPool.Get().(*barrier)
 
 	c.initNetFD(conn) // conn must be *netFD{}
 	c.initFDOperator()
@@ -338,7 +358,7 @@ func (c *connection) initNetFD(conn Conn) {
 func (c *connection) initFDOperator() {
 	op := allocop()
 	op.FD = c.fd
-	op.OnRead, op.OnWrite, op.OnHup = nil, nil, c.onHup
+	op.OnRead, op.OnWrite, op.OnHup = c.onRead, c.onWrite, c.onHup
 	op.Inputs, op.InputAck = c.inputs, c.inputAck
 	op.Outputs, op.OutputAck = c.outputs, c.outputAck
 
@@ -356,7 +376,7 @@ func (c *connection) initFinalizer() {
 		c.stop(finalizing)
 		freeop(c.operator)
 		c.netFD.Close()
-		c.closeBuffer()
+		//c.closeBuffer()
 		return nil
 	})
 }

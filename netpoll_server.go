@@ -48,7 +48,7 @@ func (s *server) Run() (err error) {
 		OnHup:  s.OnHup,
 	}
 	s.operator.poll = pollmanager.Pick()
-	err = s.operator.Control(PollReadable)
+	err = s.operator.Control(PollReadableLT)
 	if err != nil {
 		s.onQuit(err)
 	}

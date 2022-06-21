@@ -21,6 +21,18 @@ import (
 
 // ------------------------------------------ implement FDOperator ------------------------------------------
 
+// onRead means close by poller.
+func (c *connection) onRead(p Poll) error {
+	c.onRequest()
+	c.triggerRead()
+	return nil
+}
+
+func (c *connection) onWrite(p Poll) error {
+	c.triggerWrite(nil)
+	return nil
+}
+
 // onHup means close by poller.
 func (c *connection) onHup(p Poll) error {
 	if c.closeBy(poller) {

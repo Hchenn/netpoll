@@ -18,7 +18,6 @@
 package netpoll
 
 import (
-	"log"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -129,22 +128,24 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 		evt := events[i].events
 		// check poll in
 		if evt&syscall.EPOLLIN != 0 {
-			if operator.OnRead != nil {
-				// for non-connection
-				operator.OnRead(p)
-			} else {
-				// for connection
-				var bs = operator.Inputs(p.barriers[i].bs)
-				if len(bs) > 0 {
-					var n, err = readv(operator.FD, bs, p.barriers[i].ivs)
-					operator.InputAck(n)
-					if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
-						log.Printf("readv(fd=%d) failed: %s", operator.FD, err.Error())
-						p.appendHup(operator)
-						continue
-					}
-				}
-			}
+			operator.OnRead(p)
+			//
+			//if operator.OnRead != nil {
+			//	// for non-connection
+			//	operator.OnRead(p)
+			//} else {
+			//	// for connection
+			//	var bs = operator.Inputs(p.barriers[i].bs)
+			//	if len(bs) > 0 {
+			//		var n, err = readv(operator.FD, bs, p.barriers[i].ivs)
+			//		operator.InputAck(n)
+			//		if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
+			//			log.Printf("readv(fd=%d) failed: %s", operator.FD, err.Error())
+			//			p.appendHup(operator)
+			//			continue
+			//		}
+			//	}
+			//}
 		}
 
 		// check hup
@@ -163,23 +164,25 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 
 		// check poll out
 		if evt&syscall.EPOLLOUT != 0 {
-			if operator.OnWrite != nil {
-				// for non-connection
-				operator.OnWrite(p)
-			} else {
-				// for connection
-				var bs, supportZeroCopy = operator.Outputs(p.barriers[i].bs)
-				if len(bs) > 0 {
-					// TODO: Let the upper layer pass in whether to use ZeroCopy.
-					var n, err = sendmsg(operator.FD, bs, p.barriers[i].ivs, false && supportZeroCopy)
-					operator.OutputAck(n)
-					if err != nil && err != syscall.EAGAIN {
-						log.Printf("sendmsg(fd=%d) failed: %s", operator.FD, err.Error())
-						p.appendHup(operator)
-						continue
-					}
-				}
-			}
+			operator.OnWrite(p)
+			//
+			//if operator.OnWrite != nil {
+			//	// for non-connection
+			//	operator.OnWrite(p)
+			//} else {
+			//	// for connection
+			//	var bs, supportZeroCopy = operator.Outputs(p.barriers[i].bs)
+			//	if len(bs) > 0 {
+			//		// TODO: Let the upper layer pass in whether to use ZeroCopy.
+			//		var n, err = sendmsg(operator.FD, bs, p.barriers[i].ivs, false && supportZeroCopy)
+			//		operator.OutputAck(n)
+			//		if err != nil && err != syscall.EAGAIN {
+			//			log.Printf("sendmsg(fd=%d) failed: %s", operator.FD, err.Error())
+			//			p.appendHup(operator)
+			//			continue
+			//		}
+			//	}
+			//}
 		}
 		operator.done()
 	}
@@ -210,14 +213,17 @@ func (p *defaultPoll) Control(operator *FDOperator, event PollEvent) error {
 	var evt epollevent
 	*(**FDOperator)(unsafe.Pointer(&evt.data)) = operator
 	switch event {
-	case PollReadable:
+	case PollReadableLT:
 		operator.inuse()
 		op, evt.events = syscall.EPOLL_CTL_ADD, syscall.EPOLLIN|syscall.EPOLLRDHUP|syscall.EPOLLERR
+	case PollReadable:
+		operator.inuse()
+		op, evt.events = syscall.EPOLL_CTL_ADD, EPOLLET|syscall.EPOLLIN|syscall.EPOLLOUT|syscall.EPOLLRDHUP|syscall.EPOLLERR
 	case PollModReadable:
 		operator.inuse()
-		op, evt.events = syscall.EPOLL_CTL_MOD, syscall.EPOLLIN|syscall.EPOLLRDHUP|syscall.EPOLLERR
+		op, evt.events = syscall.EPOLL_CTL_MOD, EPOLLET|syscall.EPOLLIN|syscall.EPOLLOUT|syscall.EPOLLRDHUP|syscall.EPOLLERR
 	case PollDetach:
-		op, evt.events = syscall.EPOLL_CTL_DEL, syscall.EPOLLIN|syscall.EPOLLOUT|syscall.EPOLLRDHUP|syscall.EPOLLERR
+		op, evt.events = syscall.EPOLL_CTL_DEL, EPOLLET|syscall.EPOLLIN|syscall.EPOLLOUT|syscall.EPOLLRDHUP|syscall.EPOLLERR
 	case PollWritable:
 		operator.inuse()
 		op, evt.events = syscall.EPOLL_CTL_ADD, EPOLLET|syscall.EPOLLOUT|syscall.EPOLLRDHUP|syscall.EPOLLERR
