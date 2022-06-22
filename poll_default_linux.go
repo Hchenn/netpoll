@@ -47,6 +47,7 @@ func openDefaultPoll() *defaultPoll {
 	poll.Handler = poll.handler
 
 	poll.wop = &FDOperator{FD: int(r0)}
+	syscall.SetNonblock(poll.wop.FD, true)
 	poll.Control(poll.wop, PollReadable)
 	return &poll
 }

@@ -147,7 +147,8 @@ func (c *connection) onRequest() (needTrigger bool) {
 	processed := c.onProcess(
 		// only process when conn active and have unread data
 		func(c *connection) bool {
-			return c.Reader().Len() > 0
+			return c.IsActive()
+			//return c.Reader().Len() > 0
 		},
 		func(c *connection) {
 			_ = onRequest(c.ctx, c)
