@@ -44,9 +44,6 @@ func openDefaultPoll() *defaultPoll {
 		panic(err)
 	}
 
-	poll.Reset = poll.reset
-	poll.Handler = poll.handler
-
 	poll.wop = &FDOperator{FD: int(r0)}
 	poll.Control(poll.wop, PollReadable)
 	return &poll
@@ -58,37 +55,38 @@ type defaultPoll struct {
 	wop     *FDOperator // eventfd, wake epoll_wait
 	buf     []byte      // read wfd trigger msg
 	trigger uint32      // trigger flag
-	// fns for handle events
-	Reset   func(size, caps int)
-	Handler func(events []epollevent) (closed bool)
+
+	hsnum int
+	hs    []phandler
 }
 
 type pollArgs struct {
-	size     int
-	caps     int
-	events   []epollevent
-	barriers []barrier
-	hups     []func(p Poll) error
+	size   int
+	caps   int
+	events []epollevent
 }
 
 func (a *pollArgs) reset(size, caps int) {
-	a.size, a.caps = size, caps
-	a.events, a.barriers = make([]epollevent, size), make([]barrier, size)
-	for i := range a.barriers {
-		a.barriers[i].bs = make([][]byte, a.caps)
-		a.barriers[i].ivs = make([]syscall.Iovec, a.caps)
-	}
+	a.size, a.events = size, make([]epollevent, size)
 }
 
 // Wait implements Poll.
 func (p *defaultPoll) Wait() (err error) {
 	// init
 	var caps, msec, n = barriercap, -1, 0
-	p.Reset(128, caps)
+	p.reset(128, caps)
+
+	p.hsnum = runtime.GOMAXPROCS(0)
+	p.hs = make([]phandler, p.hsnum)
+	for i := 1; i < p.hsnum; i++ {
+		p.hs[i].init(p.fd, p.wop.FD, p)
+	}
+	p.hs[0].pollfd, p.hs[0].wopfd, p.hs[0].size = p.fd, p.wop.FD, 128
+
 	// wait
 	for {
 		if n == p.size && p.size < 128*1024 {
-			p.Reset(p.size<<1, caps)
+			p.reset(p.size<<1, caps)
 		}
 		n, err = EpollWait(p.fd, p.events, msec)
 		if err != nil && err != syscall.EINTR {
@@ -100,27 +98,77 @@ func (p *defaultPoll) Wait() (err error) {
 			continue
 		}
 		msec = 0
-		if p.Handler(p.events[:n]) {
-			return nil
+		if n >= p.hsnum {
+			block := n / p.hsnum
+			var idx, a, b int
+			for idx = 1; idx < p.hsnum; idx++ {
+				a = b
+				b = idx * block
+				p.hs[idx].work1 <- p.events[a:b]
+			}
+			p.hs[0].handler(p, p.events[b:n])
+			for idx = 1; idx < p.hsnum; idx++ {
+				<-p.hs[idx].work2
+			}
+		} else {
+			p.hs[0].handler(p, p.events[:n])
 		}
 	}
 }
 
-func (p *defaultPoll) handler(events []epollevent) (closed bool) {
+type phandler struct {
+	buf           [8]byte
+	pollfd, wopfd int
+
+	size    int
+	trigger uint32 // trigger flag
+
+	barriers []barrier
+	hups     []func(p Poll) error
+
+	work1 chan []epollevent
+	work2 chan struct{}
+}
+
+func (p *phandler) init(pollfd, wopfd int, poll Poll) {
+	p.pollfd, p.wopfd, p.size = pollfd, wopfd, 128
+	p.work1 = make(chan []epollevent)
+	p.work2 = make(chan struct{})
+	go func() {
+		for {
+			events, ok := <-p.work1
+			if !ok {
+				return
+			}
+			p.handler(poll, events)
+			p.work2 <- struct{}{}
+		}
+	}()
+}
+
+func (p *phandler) handler(poll Poll, events []epollevent) (closed bool) {
+	// reset
+	if n := len(events); n > len(p.barriers) {
+		p.size <<= 1
+		p.barriers = make([]barrier, p.size)
+		for i := range p.barriers {
+			p.barriers[i].bs = make([][]byte, barriercap)
+			p.barriers[i].ivs = make([]syscall.Iovec, barriercap)
+		}
+	}
+
 	for i := range events {
 		var operator = *(**FDOperator)(unsafe.Pointer(&events[i].data))
 		if !operator.do() {
 			continue
 		}
 		// trigger or exit gracefully
-		if operator.FD == p.wop.FD {
+		if operator.FD == p.wopfd {
 			// must clean trigger first
-			syscall.Read(p.wop.FD, p.buf)
+			syscall.Read(p.wopfd, p.buf[:])
 			atomic.StoreUint32(&p.trigger, 0)
 			// if closed & exit
 			if p.buf[0] > 0 {
-				syscall.Close(p.wop.FD)
-				syscall.Close(p.fd)
 				operator.done()
 				return true
 			}
@@ -133,7 +181,7 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 		if evt&syscall.EPOLLIN != 0 {
 			if operator.OnRead != nil {
 				// for non-connection
-				operator.OnRead(p)
+				operator.OnRead(poll)
 			} else {
 				// for connection
 				var bs = operator.Inputs(p.barriers[i].bs)
@@ -168,7 +216,7 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 		if evt&syscall.EPOLLOUT != 0 {
 			if operator.OnWrite != nil {
 				// for non-connection
-				operator.OnWrite(p)
+				operator.OnWrite(poll)
 			} else {
 				// for connection
 				var bs, supportZeroCopy = operator.Outputs(p.barriers[i].bs)
@@ -187,7 +235,7 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 		operator.done()
 	}
 	// hup conns together to avoid blocking the poll.
-	p.detaches()
+	p.detaches(poll)
 	return false
 }
 
@@ -232,13 +280,13 @@ func (p *defaultPoll) Control(operator *FDOperator, event PollEvent) error {
 	return EpollCtl(p.fd, op, operator.FD, &evt)
 }
 
-func (p *defaultPoll) appendHup(operator *FDOperator) {
+func (p *phandler) appendHup(operator *FDOperator) {
 	p.hups = append(p.hups, operator.OnHup)
 	operator.Control(PollDetach)
 	operator.done()
 }
 
-func (p *defaultPoll) detaches() {
+func (p *phandler) detaches(poll Poll) {
 	if len(p.hups) == 0 {
 		return
 	}
@@ -247,7 +295,7 @@ func (p *defaultPoll) detaches() {
 	go func(onhups []func(p Poll) error) {
 		for i := range onhups {
 			if onhups[i] != nil {
-				onhups[i](p)
+				onhups[i](poll)
 			}
 		}
 	}(hups)
