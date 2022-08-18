@@ -23,6 +23,12 @@ import (
 	"runtime"
 )
 
+var global_poll = openPoll()
+
+func init() {
+	go global_poll.Wait()
+}
+
 func setNumLoops(numLoops int) error {
 	return pollmanager.SetNumLoops(numLoops)
 }
@@ -51,6 +57,8 @@ type manager struct {
 
 // SetNumLoops will return error when set numLoops < 1
 func (m *manager) SetNumLoops(numLoops int) error {
+	return nil
+
 	if numLoops < 1 {
 		return fmt.Errorf("set invalid numLoops[%d]", numLoops)
 	}
@@ -79,6 +87,8 @@ func (m *manager) SetNumLoops(numLoops int) error {
 
 // SetLoadBalance set load balance.
 func (m *manager) SetLoadBalance(lb LoadBalance) error {
+	return nil
+
 	if m.balance != nil && m.balance.LoadBalance() == lb {
 		return nil
 	}
@@ -88,6 +98,8 @@ func (m *manager) SetLoadBalance(lb LoadBalance) error {
 
 // Close release all resources.
 func (m *manager) Close() error {
+	return nil
+
 	for _, poll := range m.polls {
 		poll.Close()
 	}
@@ -99,6 +111,8 @@ func (m *manager) Close() error {
 
 // Run all pollers.
 func (m *manager) Run() error {
+	return nil
+
 	// new poll to fill delta.
 	for idx := len(m.polls); idx < m.NumLoops; idx++ {
 		var poll = openPoll()
@@ -112,6 +126,8 @@ func (m *manager) Run() error {
 
 // Reset pollers, this operation is very dangerous, please make sure to do this when calling !
 func (m *manager) Reset() error {
+	return nil
+
 	for _, poll := range m.polls {
 		poll.Close()
 	}
@@ -121,5 +137,6 @@ func (m *manager) Reset() error {
 
 // Pick will select the poller for use each time based on the LoadBalance.
 func (m *manager) Pick() Poll {
+	return global_poll
 	return m.balance.Pick()
 }
