@@ -15,6 +15,7 @@
 package netpoll
 
 import (
+	"context"
 	"runtime"
 	"sync/atomic"
 )
@@ -43,8 +44,9 @@ type FDOperator struct {
 	poll Poll
 
 	// private, used by operatorCache
-	next  *FDOperator
-	state int32 // CAS: 0(unused) 1(inuse) 2(do-done)
+	next    *FDOperator
+	state   int32 // CAS: 0(unused) 1(inuse) 2(do-done)
+	runTask func(ctx context.Context, f func())
 }
 
 func (op *FDOperator) Control(event PollEvent) error {
@@ -87,4 +89,5 @@ func (op *FDOperator) reset() {
 	op.Inputs, op.InputAck = nil, nil
 	op.Outputs, op.OutputAck = nil, nil
 	op.poll = nil
+	op.runTask = nil
 }

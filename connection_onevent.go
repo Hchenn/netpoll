@@ -199,8 +199,11 @@ func (c *connection) onProcess(isProcessable func(c *connection) bool, process f
 		// task exits
 		return
 	}
-
-	runTask(c.ctx, task)
+	if c.operator.runTask != nil {
+		c.operator.runTask(c.ctx, task)
+	} else {
+		runTask(c.ctx, task)
+	}
 	return true
 }
 
