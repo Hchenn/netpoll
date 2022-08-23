@@ -22,22 +22,20 @@ import (
 	"sync/atomic"
 )
 
-type task func()
-
 func NewPool() *Pool {
 	p := &Pool{}
-	p.assign = make([]chan task, 0, 1024)
-	p.take = make([]chan task, 0, 1024)
+	p.assign = make([]chan func(), 0, 1024)
+	p.take = make([]chan func(), 0, 1024)
 	return p
 }
 
 type Pool struct {
-	assign, take []chan task
+	assign, take []chan func()
 	lock         sync.Mutex
 	idles        int32
 }
 
-func (p *Pool) CtxGo(ctx context.Context, f task) {
+func (p *Pool) CtxGo(ctx context.Context, f func()) {
 	// 1. check idles
 	if len(p.assign) == 0 && atomic.LoadInt32(&p.idles) > 0 {
 		p.swap()
@@ -54,7 +52,7 @@ func (p *Pool) CtxGo(ctx context.Context, f task) {
 	// new
 	go func() {
 		f()
-		var ch = make(chan task)
+		var ch = make(chan func())
 		for {
 			// append worker
 			p.append(ch)
@@ -78,7 +76,7 @@ func (p *Pool) swap() {
 	atomic.AddInt32(&p.idles, -int32(len(p.assign)))
 }
 
-func (p *Pool) append(worker chan task) {
+func (p *Pool) append(worker chan func()) {
 	p.lock.Lock()
 	p.take = append(p.take, worker)
 	p.lock.Unlock()
