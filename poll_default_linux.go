@@ -18,14 +18,13 @@
 package netpoll
 
 import (
-	"fmt"
 	"log"
 	"runtime"
 	"sync/atomic"
 	"syscall"
 	"unsafe"
 
-	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/cloudwego/netpoll/gopool2"
 )
 
 // Includes defaultPoll/multiPoll/uringPoll...
@@ -85,7 +84,7 @@ func (p *defaultPoll) Wait() (err error) {
 		p.hs[i].init(p.fd, p.wop.FD, p)
 	}
 	p.hs[0].pollfd, p.hs[0].wopfd, p.hs[0].size = p.fd, p.wop.FD, 128
-	p.hs[0].gp = gopool.NewPool(fmt.Sprintf("%d", p.hs[0].pollfd), 10000, gopool.NewConfig())
+	p.hs[0].gp = gopool2.NewPool()
 
 	// wait
 	for {
@@ -132,14 +131,14 @@ type phandler struct {
 
 	work1 chan []epollevent
 	work2 chan struct{}
-	gp    gopool.Pool
+	gp    *gopool2.Pool
 }
 
 func (p *phandler) init(pollfd, wopfd int, poll Poll) {
 	p.pollfd, p.wopfd, p.size = pollfd, wopfd, 128
 	p.work1 = make(chan []epollevent)
 	p.work2 = make(chan struct{})
-	p.gp = gopool.NewPool(fmt.Sprintf("%d", p.pollfd), 10000, gopool.NewConfig())
+	p.gp = gopool2.NewPool()
 	go func() {
 		for {
 			events, ok := <-p.work1
