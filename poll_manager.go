@@ -36,6 +36,7 @@ var pollmanager *manager
 
 func init() {
 	var loops = runtime.GOMAXPROCS(0)/20 + 1
+	loops = 1
 	pollmanager = &manager{}
 	pollmanager.SetLoadBalance(RoundRobin)
 	pollmanager.SetNumLoops(loops)

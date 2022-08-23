@@ -22,10 +22,13 @@ import (
 	"log"
 	"sync/atomic"
 
-	"github.com/cloudwego/netpoll/gopool"
+	"github.com/cloudwego/netpoll/gopool2"
 )
 
-var runTask = gopool.CtxGo
+var globalpool = gopool2.NewPool()
+var runTask = globalpool.CtxGo
+
+//var runTask = gopool.CtxGo
 
 func disableGopool() error {
 	runTask = func(ctx context.Context, f func()) {
