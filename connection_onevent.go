@@ -22,7 +22,7 @@ import (
 	"log"
 	"sync/atomic"
 
-	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/cloudwego/netpoll/gopool"
 )
 
 var runTask = gopool.CtxGo
