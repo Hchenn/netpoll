@@ -15,6 +15,7 @@
 package netpoll
 
 import (
+	"context"
 	"runtime"
 	"sync/atomic"
 )
@@ -41,6 +42,8 @@ type FDOperator struct {
 
 	// poll is the registered location of the file descriptor.
 	poll Poll
+	// self gopool
+	runTask func(ctx context.Context, f func())
 
 	// private, used by operatorCache
 	next  *FDOperator
@@ -86,5 +89,6 @@ func (op *FDOperator) reset() {
 	op.OnRead, op.OnWrite, op.OnHup = nil, nil, nil
 	op.Inputs, op.InputAck = nil, nil
 	op.Outputs, op.OutputAck = nil, nil
+	op.runTask = nil
 	op.poll = nil
 }

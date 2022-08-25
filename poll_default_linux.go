@@ -20,9 +20,12 @@ package netpoll
 import (
 	"log"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 	"unsafe"
+
+	"github.com/bytedance/gopkg/util/gopool"
 )
 
 // Includes defaultPoll/multiPoll/uringPoll...
@@ -43,6 +46,7 @@ func openDefaultPoll() *defaultPoll {
 		syscall.Close(p)
 		panic(err)
 	}
+	poll.gp = gopool.NewPool(strconv.Itoa(poll.fd), 10000, gopool.NewConfig())
 
 	poll.Reset = poll.reset
 	poll.Handler = poll.handler
@@ -58,6 +62,7 @@ type defaultPoll struct {
 	wop     *FDOperator // eventfd, wake epoll_wait
 	buf     []byte      // read wfd trigger msg
 	trigger uint32      // trigger flag
+	gp      gopool.Pool
 	// fns for handle events
 	Reset   func(size, caps int)
 	Handler func(events []epollevent) (closed bool)
@@ -139,6 +144,7 @@ func (p *defaultPoll) handler(events []epollevent) (closed bool) {
 				var bs = operator.Inputs(p.barriers[i].bs)
 				if len(bs) > 0 {
 					var n, err = readv(operator.FD, bs, p.barriers[i].ivs)
+					operator.runTask = p.gp.CtxGo
 					operator.InputAck(n)
 					if err != nil && err != syscall.EAGAIN && err != syscall.EINTR {
 						log.Printf("readv(fd=%d) failed: %s", operator.FD, err.Error())

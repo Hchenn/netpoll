@@ -28,9 +28,7 @@ import (
 var runTask = gopool.CtxGo
 
 func disableGopool() error {
-	runTask = func(ctx context.Context, f func()) {
-		go f()
-	}
+	runTask = nil
 	return nil
 }
 
@@ -199,8 +197,15 @@ func (c *connection) onProcess(isProcessable func(c *connection) bool, process f
 		// task exits
 		return
 	}
-
-	runTask(c.ctx, task)
+	// disable
+	switch {
+	case runTask == nil:
+		go task()
+	case c.operator.runTask != nil:
+		c.operator.runTask(c.ctx, task)
+	default:
+		runTask(c.ctx, task)
+	}
 	return true
 }
 
